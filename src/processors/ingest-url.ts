@@ -129,10 +129,75 @@ interface ExtractedContent {
   content: string;
 }
 
+// Common bot-block and error page phrases to detect invalid content
+const BOT_BLOCK_PHRASES = [
+  'verifying you are human',
+  'checking your browser',
+  'just a moment',
+  'please wait while we verify',
+  'cloudflare',
+  'ddos protection',
+  'access denied',
+  'please enable javascript',
+  'please enable cookies',
+  'captcha',
+  'are you a robot',
+  'security check',
+  'unusual traffic',
+  'bot detection',
+];
+
+/**
+ * Validate that extracted content is meaningful and not a bot-block page
+ */
+function validateContent(content: string, title: string): { valid: boolean; reason?: string } {
+  const lowerContent = content.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+  
+  // Check for bot-block phrases
+  for (const phrase of BOT_BLOCK_PHRASES) {
+    if (lowerContent.includes(phrase) || lowerTitle.includes(phrase)) {
+      return { valid: false, reason: `Bot protection detected: "${phrase}"` };
+    }
+  }
+  
+  // Check if content is too short (less than 200 chars of actual content)
+  const contentWithoutWhitespace = content.replace(/\s+/g, '');
+  if (contentWithoutWhitespace.length < 200) {
+    return { valid: false, reason: 'Content too short (less than 200 characters)' };
+  }
+  
+  // Check if content is mostly repetitive (sign of blocked page)
+  const words = content.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const uniqueWords = new Set(words);
+  const uniqueRatio = uniqueWords.size / Math.max(words.length, 1);
+  if (words.length > 20 && uniqueRatio < 0.3) {
+    return { valid: false, reason: 'Content appears repetitive (possible blocked page)' };
+  }
+  
+  return { valid: true };
+}
+
 async function processExtractedContent(
   supabase: SupabaseClient,
   { sourceId, orgId, pocketId, title, content }: ExtractedContent
 ): Promise<void> {
+  // Validate content before processing
+  const validation = validateContent(content, title);
+  if (!validation.valid) {
+    console.error(`❌ Content validation failed: ${validation.reason}`);
+    await supabase
+      .from('sources')
+      .update({ 
+        status: 'failed',
+        error_message: validation.reason,
+      })
+      .eq('id', sourceId);
+    throw new Error(validation.reason);
+  }
+  
+  console.log(`✅ Content validation passed`);
+  
   // Update status to chunking
   await supabase
     .from('sources')
