@@ -7,7 +7,7 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-FROM mcr.microsoft.com/playwright:v1.42.0-jammy AS runner
+FROM mcr.microsoft.com/playwright:v1.57.0-jammy AS runner
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y curl && \
