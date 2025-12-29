@@ -1,13 +1,11 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
-
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile || npm install
+COPY package.json ./
+RUN npm install
 
 COPY . .
-RUN pnpm build || npm run build
+RUN npm run build
 
 FROM mcr.microsoft.com/playwright:v1.42.0-jammy AS runner
 WORKDIR /app
@@ -29,4 +27,4 @@ USER worker
 
 ENV NODE_ENV=production
 
-CMD ["node", "dist/src/index.js"]
+CMD ["node", "dist/index.js"]
