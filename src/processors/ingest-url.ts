@@ -106,10 +106,11 @@ async function fetchWithPlaywright(url: string): Promise<{ html: string; title: 
   const page = await browser.newPage();
   
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    // Use domcontentloaded instead of networkidle - many sites never reach networkidle
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
-    // Wait a bit for dynamic content
-    await page.waitForTimeout(2000);
+    // Wait for content to render
+    await page.waitForTimeout(3000);
     
     const html = await page.content();
     const title = await page.title();
