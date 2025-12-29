@@ -11,7 +11,7 @@ const envSchema = z.object({
   // OpenRouter
   OPENROUTER_API_KEY: z.string().min(1),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
-  OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-large'),
+  OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-small'),
 
   // Playwright
   PLAYWRIGHT_ENABLED: z.coerce.boolean().default(true),
