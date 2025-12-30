@@ -84,8 +84,8 @@ export async function processChunkMemory(
     
     console.log(`🔢 Embedding batch ${Math.floor(i / EMBEDDING_BATCH_SIZE) + 1}/${Math.ceil(chunks.length / EMBEDDING_BATCH_SIZE)}`);
     
-    // Generate embeddings
-    const embeddings = await embeddingProvider.embedBatch(texts);
+    // Generate embeddings (embed() accepts an array of texts)
+    const embeddings = await embeddingProvider.embed(texts);
     
     // Create chunk records
     for (let j = 0; j < batch.length; j++) {
