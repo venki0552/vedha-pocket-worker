@@ -9,6 +9,7 @@ import {
 } from '@vedha/shared';
 import { OpenRouterEmbeddingProvider } from '@vedha/shared';
 import { env } from '../config/env.js';
+import { decryptApiKey } from '../services/encryption.js';
 
 interface ChunkMemoryJob {
   memoryId: string;
@@ -23,6 +24,24 @@ export async function processChunkMemory(
   const { memoryId, orgId, userId } = job;
   
   console.log(`🧠 Processing memory: ${memoryId}`);
+  
+  // Get user's API key from database
+  const { data: settings, error: settingsError } = await supabase
+    .from('user_settings')
+    .select('openrouter_api_key_encrypted')
+    .eq('user_id', userId)
+    .single();
+  
+  let apiKey: string;
+  if (settings?.openrouter_api_key_encrypted) {
+    apiKey = decryptApiKey(settings.openrouter_api_key_encrypted);
+    console.log('🔑 Using user\'s OpenRouter API key');
+  } else if (env.OPENROUTER_API_KEY) {
+    apiKey = env.OPENROUTER_API_KEY;
+    console.log('🔑 Using shared OpenRouter API key');
+  } else {
+    throw new Error('No API key configured for user');
+  }
   
   // Get memory content
   const { data: memory, error: fetchError } = await supabase
@@ -61,9 +80,9 @@ export async function processChunkMemory(
   
   console.log(`📝 Created ${chunks.length} chunks for memory`);
   
-  // Create embedding provider
+  // Create embedding provider with user's API key
   const embeddingProvider = new OpenRouterEmbeddingProvider({
-    apiKey: env.OPENROUTER_API_KEY,
+    apiKey,
     baseUrl: env.OPENROUTER_BASE_URL,
     embedModel: env.OPENROUTER_EMBED_MODEL,
   });

@@ -8,10 +8,13 @@ const envSchema = z.object({
   // Redis
   REDIS_URL: z.string().min(1),
 
-  // OpenRouter
-  OPENROUTER_API_KEY: z.string().min(1),
+  // OpenRouter (fallback/shared key)
+  OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-small'),
+
+  // Encryption
+  MASTER_KEY: z.string().min(1),
 
   // Playwright
   PLAYWRIGHT_ENABLED: z.coerce.boolean().default(true),
