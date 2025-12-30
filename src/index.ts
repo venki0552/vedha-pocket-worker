@@ -5,6 +5,7 @@ import { createServiceClient } from '@vedha/db';
 import { env } from './config/env.js';
 import { processIngestUrl } from './processors/ingest-url.js';
 import { processIngestFile } from './processors/ingest-file.js';
+import { processChunkMemory } from './processors/chunk-memory.js';
 
 // Initialize Sentry
 if (env.SENTRY_DSN) {
@@ -46,8 +47,15 @@ interface IngestFileJob {
 
 type IngestJob = IngestUrlJob | IngestFileJob;
 
-// Create worker
-const worker = new Worker<IngestJob>(
+// Memory job type
+interface ChunkMemoryJob {
+  memoryId: string;
+  orgId: string;
+  userId: string;
+}
+
+// Create ingest worker
+const ingestWorker = new Worker<IngestJob>(
   'ingest',
   async (job: Job<IngestJob>) => {
     console.log(`📋 Processing job ${job.id}: ${job.name}`);
@@ -99,23 +107,64 @@ const worker = new Worker<IngestJob>(
   }
 );
 
+// Create memory worker
+const memoryWorker = new Worker<ChunkMemoryJob>(
+  'memory',
+  async (job: Job<ChunkMemoryJob>) => {
+    console.log(`🧠 Processing memory job ${job.id}: ${job.name}`);
+    
+    try {
+      await processChunkMemory(supabase, job.data);
+      console.log(`✅ Memory job ${job.id} completed successfully`);
+    } catch (error) {
+      console.error(`❌ Memory job ${job.id} failed:`, error);
+      
+      // Log error to Sentry
+      if (env.SENTRY_DSN) {
+        Sentry.captureException(error, {
+          extra: { jobId: job.id, jobData: job.data },
+        });
+      }
+      
+      throw error;
+    }
+  },
+  {
+    connection: redis,
+    concurrency: env.WORKER_CONCURRENCY,
+  }
+);
+
 // Worker event handlers
-worker.on('completed', (job) => {
-  console.log(`📦 Job ${job.id} has been completed`);
+ingestWorker.on('completed', (job) => {
+  console.log(`📦 Ingest job ${job.id} has been completed`);
 });
 
-worker.on('failed', (job, err) => {
-  console.error(`💥 Job ${job?.id} has failed:`, err.message);
+ingestWorker.on('failed', (job, err) => {
+  console.error(`💥 Ingest job ${job?.id} has failed:`, err.message);
 });
 
-worker.on('error', (err) => {
-  console.error('Worker error:', err);
+ingestWorker.on('error', (err) => {
+  console.error('Ingest worker error:', err);
+});
+
+memoryWorker.on('completed', (job) => {
+  console.log(`📦 Memory job ${job.id} has been completed`);
+});
+
+memoryWorker.on('failed', (job, err) => {
+  console.error(`💥 Memory job ${job?.id} has failed:`, err.message);
+});
+
+memoryWorker.on('error', (err) => {
+  console.error('Memory worker error:', err);
 });
 
 // Graceful shutdown
 async function shutdown() {
-  console.log('🛑 Shutting down worker...');
-  await worker.close();
+  console.log('🛑 Shutting down workers...');
+  await ingestWorker.close();
+  await memoryWorker.close();
   await redis.quit();
   process.exit(0);
 }
@@ -123,4 +172,4 @@ async function shutdown() {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-console.log('✅ Worker is ready and listening for jobs');
+console.log('✅ Workers are ready and listening for jobs');
