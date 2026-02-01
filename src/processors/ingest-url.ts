@@ -5,6 +5,7 @@ import {
   cleanText, 
   chunkText, 
   hashContent,
+  validateUrlForSsrf,
   CHUNK_TARGET_TOKENS,
   CHUNK_OVERLAP_TOKENS,
   EMBEDDING_BATCH_SIZE,
@@ -26,6 +27,24 @@ export async function processIngestUrl(
   const { sourceId, orgId, pocketId, url } = job;
   
   console.log(`🌐 Ingesting URL: ${url}`);
+  
+  // SSRF Protection: Validate URL before processing
+  try {
+    validateUrlForSsrf(url);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Invalid URL';
+    console.error(`🚫 SSRF Protection blocked URL: ${url} - ${errorMessage}`);
+    
+    await supabase
+      .from('sources')
+      .update({ 
+        status: 'failed',
+        error_message: `Security validation failed: ${errorMessage}`
+      })
+      .eq('id', sourceId);
+    
+    throw new Error(`URL blocked by security policy: ${errorMessage}`);
+  }
   
   // Update status to extracting
   await supabase
